@@ -1,5 +1,7 @@
 import gymnasium as gym
 import requests
+import streamlit as st
+
 
 env = gym.make("LunarLander-v3", render_mode="rgb_array")
 
@@ -9,8 +11,12 @@ total_reward = 0
 terminated = False
 truncated = False
 
+frame_placeholder = st.empty()
+
+
 while not terminated and not truncated:
     frame = env.render()
+    frame_placeholder.image(frame)
 
     response = requests.post(
         "http://localhost:8000/play",
@@ -22,4 +28,4 @@ while not terminated and not truncated:
     total_reward += reward
 
 env.close()
-print(f"Récompense totale : {total_reward:.2f}")
+st.write(f"Récompense totale : {total_reward:.2f}")
