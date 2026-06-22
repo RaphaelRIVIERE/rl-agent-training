@@ -12,3 +12,5 @@ wheels/
 # Modèles entraînés et logs
 notebook/*.zip
 notebook/logs/
+notebook/models/
+
