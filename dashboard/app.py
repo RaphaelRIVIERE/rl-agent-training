@@ -36,9 +36,6 @@ api_url = st.sidebar.text_input("URL de l'API", value="http://localhost:8000")
 n_episodes = st.sidebar.slider("Nombre d'épisodes", min_value=5, max_value=50, value=20)
 run = st.sidebar.button("Lancer les épisodes")
 
-if not run:
-    st.info("Lance des épisodes via la sidebar pour voir les résultats.")
-
 if run:
     results = []
     progress_bar = st.progress(0)
@@ -50,6 +47,15 @@ if run:
 
     df = pd.DataFrame(results)
     df.index = df.index + 1  # épisodes numérotés à partir de 1
+
+    st.session_state["df"] = df
+    st.session_state["results"] = results
+
+if "df" not in st.session_state:
+    st.info("Lance des épisodes via la sidebar pour voir les résultats.")
+else:
+    df = st.session_state["df"]
+    results = st.session_state["results"]
 
     mean_reward = df["reward"].mean()
     std_reward = df["reward"].std()
