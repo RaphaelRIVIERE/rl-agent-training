@@ -3,12 +3,14 @@ import gymnasium as gym
 import requests
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 
 
 def play_episode(api_url):
     env = gym.make("LunarLander-v3")
 
     obs, _ = env.reset()
+    initial_obs = obs.copy()
     step_count = 0
     total_reward = 0
     terminated = False
@@ -23,12 +25,12 @@ def play_episode(api_url):
         step_count += 1
 
     env.close()
-    return {"reward": total_reward, "steps": step_count}
+    return {"reward": total_reward, "steps": step_count, "initial_obs": initial_obs}
 
 
 st.set_page_config(page_title="Eagle-1 Dashboard", layout="wide")
 
-st.title("Eagle-1 — Tableau de bord")
+st.title("Tableau de bord de Eagle-1 ")
 
 api_url = st.sidebar.text_input("URL de l'API", value="http://localhost:8000")
 n_episodes = st.sidebar.slider("Nombre d'épisodes", min_value=5, max_value=50, value=20)
@@ -120,6 +122,62 @@ if run:
         value=int(df["reward"].min()) - 1,
     )
 
-    df_filtered = df[df["reward"] >= seuil].copy()
+    df_filtered = df[df["reward"] >= seuil][["reward", "steps"]].copy()
     df_filtered.columns = ["Récompense", "Steps"]
     st.dataframe(df_filtered, use_container_width=True)
+
+    st.subheader("Diversité des conditions de départ")
+    st.caption(
+        "Vérifie que l'agent n'a pas mémorisé des scénarios spécifiques : "
+        "si les états initiaux sont variés et que les performances restent bonnes, il n'y a pas de surapprentissage."
+    )
+
+    initial_obs_matrix = np.array([r["initial_obs"] for r in results])
+
+    # Distances euclidiennes entre toutes les paires (sur les 6 premières dimensions : position, vitesse, angle)
+    similarity_threshold = st.slider(
+        "Seuil de similarité (distance euclidienne)",
+        min_value=0.1,
+        max_value=2.0,
+        value=0.5,
+        step=0.1,
+    )
+
+    n = len(initial_obs_matrix)
+    similar_pairs = 0
+    total_pairs = n * (n - 1) // 2
+    for i in range(n):
+        for j in range(i + 1, n):
+            dist = np.linalg.norm(initial_obs_matrix[i, :6] - initial_obs_matrix[j, :6])
+            if dist < similarity_threshold:
+                similar_pairs += 1
+
+    col_a, col_b = st.columns(2)
+    col_a.metric("Paires d'épisodes similaires", f"{similar_pairs} / {total_pairs}")
+    col_b.metric(
+        "Taux de similarité",
+        f"{similar_pairs / total_pairs * 100:.1f}%",
+        help="Un taux faible confirme la diversité des scénarios testés.",
+    )
+
+    fig_div = go.Figure()
+    fig_div.add_trace(go.Scatter(
+        x=initial_obs_matrix[:, 0],
+        y=initial_obs_matrix[:, 1],
+        mode="markers",
+        marker=dict(
+            size=10,
+            color=df["reward"],
+            colorscale="RdYlGn",
+            colorbar=dict(title="Récompense"),
+            showscale=True,
+        ),
+        text=[f"Épisode {i+1}<br>Récompense : {r:.1f}" for i, r in enumerate(df["reward"])],
+        hovertemplate="%{text}<br>x₀=%{x:.3f}, y₀=%{y:.3f}<extra></extra>",
+    ))
+    fig_div.update_layout(
+        xaxis_title="Position horizontale initiale (x₀)",
+        yaxis_title="Position verticale initiale (y₀)",
+        height=400,
+    )
+    st.plotly_chart(fig_div, use_container_width=True)
